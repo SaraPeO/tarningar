@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tärningssimulator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+
+        /* 3D Tärningsdesign och skuggor */
+        .dice-face {
+            width: 52px;
+            height: 52px;
+            background: linear-gradient(145deg, #ffffff, #e2e8f0);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 
+                        0 2px 4px -1px rgba(0, 0, 0, 0.2),
+                        inset 0 2px 3px rgba(255, 255, 255, 0.8),
+                        inset 0 -2px 3px rgba(0, 0, 0, 0.2);
+            position: relative;
+            user-select: none;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.2s ease, filter 0.2s ease;
+            cursor: pointer;
+        }
+
+        .dice-face:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 12px -2px rgba(0, 0, 0, 0.4);
+        }
+
+        /* Gråmarkerad tärning vid klick */
+        .dice-face.selected {
+            background: linear-gradient(145deg, #64748b, #475569);
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.4);
+            filter: grayscale(0.5);
+        }
+
+        .dice-face.selected .dot {
+            background-color: #0f172a;
+        }
+
+        /* Animerat kast */
+        .rolling {
+            animation: roll 0.75s cubic-bezier(0.25, 1, 0.5, 1);
+        }
+
+        @keyframes roll {
+            0% { transform: scale(0.6) rotate(-180deg) translateY(-20px); opacity: 0.4; }
+            40% { transform: scale(1.25) rotate(190deg) translateY(-10px); }
+            70% { transform: scale(0.9) rotate(-35deg) translateY(5px); }
+            85% { transform: scale(1.05) rotate(10deg); }
+            100% { transform: scale(1) rotate(0deg) translateY(0); opacity: 1; }
+        }
+
+        /* Prickar på tärningen */
+        .dot {
+            width: 9px;
+            height: 9px;
+            background-color: #1e293b;
+            border-radius: 50%;
+            position: absolute;
+            box-shadow: inset 0 1px 1px rgba(0,0,0,0.6);
+        }
+
+        /* Positionering av prickar (1-6) */
+        /* Top-Left */
+        .dot-tl { top: 9px; left: 9px; }
+        /* Top-Right */
+        .dot-tr { top: 9px; right: 9px; }
+        /* Center-Left */
+        .dot-cl { top: 21.5px; left: 9px; }
+        /* Center-Center */
+        .dot-cc { top: 21.5px; left: 21.5px; }
+        /* Center-Right */
+        .dot-cr { top: 21.5px; right: 9px; }
+        /* Bottom-Left */
+        .dot-bl { bottom: 9px; left: 9px; }
+        /* Bottom-Right */
+        .dot-br { bottom: 9px; right: 9px; }
+
+        /* Anpassad rullningslist */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-4 md:p-8 bg-slate-900 text-slate-100">
+
+    <!-- Huvudbehållare -->
+    <div class="max-w-6xl mx-auto w-full flex-grow flex flex-col gap-6">
+
+        <!-- Rubrik och beskrivning -->
+        <header class="text-center py-2">
+            <h1 class="text-3xl md:text-5xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">
+                Tärningssimulator
+            </h1>
+            <p class="text-slate-400 mt-2 text-sm md:text-base">
+                Kasta 1 till 300 tärningar direkt för dina brädspel.
+            </p>
+        </header>
+
+        <!-- Kontrollpanel -->
+        <section class="bg-slate-800/80 backdrop-blur border border-slate-700/60 rounded-2xl p-4 md:p-6 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+            
+            <!-- Välj antal tärningar -->
+            <div class="w-full md:w-auto flex flex-col gap-2">
+                <label for="diceCountInput" class="text-sm font-semibold text-slate-300 flex items-center justify-between">
+                    <span>Antal tärningar (1–300):</span>
+                    <span id="countDisplay" class="text-indigo-400 font-bold text-base">-</span>
+                </label>
+                
+                <div class="flex items-center gap-3">
+                    <input 
+                        type="number" 
+                        id="diceCountInput" 
+                        min="1" 
+                        max="300" 
+                        value=""
+                        placeholder="0"
+                        class="w-24 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2.5 text-center font-bold text-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                    
+                    <!-- Snabbvalsknappar -->
+                    <div class="flex gap-1.5 flex-wrap">
+                        <button onclick="setDiceCount(1)" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs font-semibold rounded-lg transition">1</button>
+                        <button onclick="setDiceCount(10)" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs font-semibold rounded-lg transition">10</button>
+                        <button onclick="setDiceCount(20)" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs font-semibold rounded-lg transition">20</button>
+                        <button onclick="setDiceCount(50)" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs font-semibold rounded-lg transition">50</button>
+                        <button onclick="setDiceCount(100)" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs font-semibold rounded-lg transition">100</button>
+                        <button onclick="setDiceCount(200)" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs font-semibold rounded-lg transition">200</button>
+                        <button onclick="setDiceCount(300)" class="px-2.5 py-1.5 bg-slate-700 hover:bg-slate-600 text-xs font-semibold rounded-lg transition">300</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Kastknapp -->
+            <div class="w-full md:w-auto flex items-center justify-end">
+                <button 
+                    id="rollBtn" 
+                    onclick="rollDice()"
+                    class="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 text-white font-extrabold text-lg rounded-xl shadow-lg hover:shadow-indigo-500/25 active:scale-95 transition-all duration-150 flex items-center justify-center gap-2"
+                >
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    KASTA TÄRNINGAR
+                </button>
+            </div>
+        </section>
+
+        <!-- Visningsyta för Tärningar -->
+        <section class="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4 md:p-6 flex-grow flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-slate-200">
+                    Tärningsresultat
+                </h2>
+            </div>
+            
+            <!-- Flex-container där tärningarna ordnas snyggt i rader med fast storlek -->
+            <div 
+                id="diceContainer" 
+                class="flex flex-wrap gap-3.5 items-center justify-start max-h-[600px] overflow-y-auto p-4 rounded-xl bg-slate-900/40 border border-slate-900/60"
+            >
+                <!-- Tärningar genereras här dynamically -->
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Sidfot -->
+    <footer class="mt-8 text-center text-xs text-slate-500">
+        Tärningssimulator för alla typer av brädspel • Tärningsstorleken är konstant oavsett antal.
+    </footer>
+
+    <!-- JavaScript-logik -->
+    <script>
+        // Tillstånd för tärningar (innehåller objekt med värde och markeringsstatus)
+        let diceData = [];
+
+        // Elementreferenser
+        const diceInput = document.getElementById('diceCountInput');
+        const countDisplay = document.getElementById('countDisplay');
+        const diceContainer = document.getElementById('diceContainer');
+
+        // Initiering vid start - tomt fält och inga tärningar
+        window.onload = () => {
+            setupEventListeners();
+        };
+
+        function setupEventListeners() {
+            diceInput.addEventListener('input', handleInputChange);
+            
+            // Lyssna på Enter-tangenten för att kasta tärningar
+            window.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    rollDice();
+                }
+            });
+        }
+
+        function handleInputChange() {
+            let valStr = diceInput.value;
+            if (valStr === '') {
+                countDisplay.innerText = '-';
+                return;
+            }
+
+            let val = parseInt(valStr);
+            if (isNaN(val)) return;
+            
+            if (val > 300) val = 300;
+            if (val < 1) val = 1;
+            
+            diceInput.value = val;
+            countDisplay.innerText = val;
+        }
+
+        // Hjälpfunktion för snabbknappar
+        function setDiceCount(count) {
+            diceInput.value = count;
+            countDisplay.innerText = count;
+        }
+
+        // Kasta tärningar utifrån inskrivet antal
+        function rollDice() {
+            let targetCount = parseInt(diceInput.value);
+            
+            // Om fältet är tomt eller ogiltigt görs inget kast
+            if (isNaN(targetCount) || targetCount < 1) {
+                return;
+            }
+
+            if (targetCount > 300) {
+                targetCount = 300;
+                diceInput.value = 300;
+                countDisplay.innerText = 300;
+            }
+
+            // Skapa nya slumpade tärningar
+            diceData = [];
+            for (let i = 0; i < targetCount; i++) {
+                diceData.push({
+                    value: Math.floor(Math.random() * 6) + 1,
+                    selected: false
+                });
+            }
+
+            renderDice(true);
+        }
+
+        // Växla gråmarkering på en enskild tärning
+        function toggleSelectDice(index) {
+            if (diceData[index]) {
+                diceData[index].selected = !diceData[index].selected;
+                renderDice(false);
+            }
+        }
+
+        // Generera HTML för en tärnings prickar baserat på värdet (1-6)
+        function getDotsHTML(value) {
+            switch(value) {
+                case 1:
+                    return '<div class="dot dot-cc"></div>';
+                case 2:
+                    return '<div class="dot dot-tl"></div><div class="dot dot-br"></div>';
+                case 3:
+                    return '<div class="dot dot-tl"></div><div class="dot dot-cc"></div><div class="dot dot-br"></div>';
+                case 4:
+                    return '<div class="dot dot-tl"></div><div class="dot dot-tr"></div><div class="dot dot-bl"></div><div class="dot dot-br"></div>';
+                case 5:
+                    return '<div class="dot dot-tl"></div><div class="dot dot-tr"></div><div class="dot dot-cc"></div><div class="dot dot-bl"></div><div class="dot dot-br"></div>';
+                case 6:
+                    return '<div class="dot dot-tl"></div><div class="dot dot-tr"></div><div class="dot dot-cl"></div><div class="dot dot-cr"></div><div class="dot dot-bl"></div><div class="dot dot-br"></div>';
+                default:
+                    return '';
+            }
+        }
+
+        // Rendera alla tärningar i container-elementet
+        function renderDice(animate = false) {
+            diceContainer.innerHTML = '';
+
+            const fragment = document.createDocumentFragment();
+
+            diceData.forEach((dice, index) => {
+                const diceDiv = document.createElement('div');
+                diceDiv.className = `dice-face flex-shrink-0 ${dice.selected ? 'selected' : ''} ${animate ? 'rolling' : ''}`;
+                diceDiv.innerHTML = getDotsHTML(dice.value);
+                diceDiv.onclick = () => toggleSelectDice(index);
+                fragment.appendChild(diceDiv);
+            });
+
+            diceContainer.appendChild(fragment);
+        }
+    </script>
+</body>
+</html>
